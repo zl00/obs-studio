@@ -4779,7 +4779,7 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 			ENCODER_STR("Hardware.NVENC.HEVC"),
 			QString(SIMPLE_ENCODER_NVENC_HEVC));
 #endif
-	if (EncoderAvailable("amd_amf_h264"))
+	if (EncoderAvailable("h264_texture_amf"))
 		ui->simpleOutRecEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
@@ -4804,7 +4804,7 @@ void OBSBasicSettings::FillSimpleStreamingValues()
 			ENCODER_STR("Hardware.NVENC.HEVC"),
 			QString(SIMPLE_ENCODER_NVENC_HEVC));
 #endif
-	if (EncoderAvailable("amd_amf_h264"))
+	if (EncoderAvailable("h264_texture_amf"))
 		ui->simpleOutStrEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
