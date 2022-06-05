@@ -389,6 +389,10 @@ void SimpleOutput::LoadRecordingPreset()
 			LoadRecordingPreset_Lossy("obs_qsv11");
 		} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
 			LoadRecordingPreset_Lossy("h264_texture_amf");
+#ifdef ENABLE_HEVC
+		} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+			LoadRecordingPreset_Lossy("h265_texture_amf");
+#endif
 		} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 			const char *id = EncoderAvailable("jim_nvenc")
 						 ? "jim_nvenc"
@@ -423,6 +427,10 @@ SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
 		LoadStreamingPreset_Lossy("h264_texture_amf");
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+		LoadStreamingPreset_Lossy("h265_texture_amf");
+#endif
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 		const char *id = EncoderAvailable("jim_nvenc") ? "jim_nvenc"
@@ -531,6 +539,11 @@ void SimpleOutput::Update()
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
 		presetType = "AMDPreset";
+
+#ifdef ENABLE_HEVC
+	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD_HEVC) == 0) {
+		presetType = "AMDPreset";
+#endif
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 		presetType = "NVENCPreset";
@@ -712,6 +725,11 @@ void SimpleOutput::UpdateRecordingSettings()
 
 	} else if (videoEncoder == SIMPLE_ENCODER_AMD) {
 		UpdateRecordingSettings_amd_cqp(crf);
+
+#ifdef ENABLE_HEVC
+	} else if (videoEncoder == SIMPLE_ENCODER_AMD_HEVC) {
+		UpdateRecordingSettings_amd_cqp(crf);
+#endif
 
 	} else if (videoEncoder == SIMPLE_ENCODER_NVENC) {
 		UpdateRecordingSettings_nvenc(crf);
