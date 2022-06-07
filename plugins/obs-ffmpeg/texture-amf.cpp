@@ -991,7 +991,7 @@ static bool amf_avc_update(void *data, obs_data_t *settings)
 
 	if (rc != AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
 		set_avc_property(enc, TARGET_BITRATE, bitrate);
-		set_avc_property(enc, PEAK_BITRATE, bitrate * 15 / 10);
+		set_avc_property(enc, PEAK_BITRATE, bitrate);
 		set_avc_property(enc, VBV_BUFFER_SIZE, bitrate);
 
 		if (rc == AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR) {
@@ -1218,7 +1218,7 @@ static bool amf_hevc_update(void *data, obs_data_t *settings)
 	if (rc != AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
 		int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
 		set_hevc_property(enc, TARGET_BITRATE, bitrate);
-		set_hevc_property(enc, PEAK_BITRATE, bitrate * 15 / 10);
+		set_hevc_property(enc, PEAK_BITRATE, bitrate);
 		set_hevc_property(enc, VBV_BUFFER_SIZE, bitrate);
 
 		if (rc == AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR) {
