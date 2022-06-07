@@ -993,6 +993,10 @@ static bool amf_avc_update(void *data, obs_data_t *settings)
 		set_avc_property(enc, TARGET_BITRATE, bitrate);
 		set_avc_property(enc, PEAK_BITRATE, bitrate * 15 / 10);
 		set_avc_property(enc, VBV_BUFFER_SIZE, bitrate);
+
+		if (rc == AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR) {
+			set_avc_property(enc, FILLER_DATA_ENABLE, true);
+		}
 	} else {
 		set_avc_property(enc, QP_I, qp);
 		set_avc_property(enc, QP_P, qp);
@@ -1216,6 +1220,10 @@ static bool amf_hevc_update(void *data, obs_data_t *settings)
 		set_hevc_property(enc, TARGET_BITRATE, bitrate);
 		set_hevc_property(enc, PEAK_BITRATE, bitrate * 15 / 10);
 		set_hevc_property(enc, VBV_BUFFER_SIZE, bitrate);
+
+		if (rc == AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR) {
+			set_hevc_property(enc, FILLER_DATA_ENABLE, true);
+		}
 	} else {
 		int64_t qp = obs_data_get_int(settings, "cqp");
 		set_hevc_property(enc, QP_I, qp);
