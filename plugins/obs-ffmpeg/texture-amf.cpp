@@ -946,13 +946,11 @@ static inline int get_avc_preset(obs_data_t *settings)
 	return AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY;
 }
 
-static inline int get_avc_rate_control(obs_data_t *settings)
+static inline int get_avc_rate_control(const char *rc_str)
 {
-	const char *rc = obs_data_get_string(settings, "rate_control");
-
-	if (astrcmpi(rc, "cqp") == 0)
+	if (astrcmpi(rc_str, "cqp") == 0)
 		return AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP;
-	else if (astrcmpi(rc, "vbr") == 0)
+	else if (astrcmpi(rc_str, "vbr") == 0)
 		return AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR;
 
 	return AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR;
@@ -974,21 +972,9 @@ static inline int get_avc_profile(obs_data_t *settings)
 	return AMF_VIDEO_ENCODER_PROFILE_HIGH;
 }
 
-static bool amf_avc_update(void *data, obs_data_t *settings)
+static void amf_avc_update_data(amf_base *enc, int rc, int64_t bitrate,
+				int64_t qp)
 {
-	amf_base *enc = (amf_base *)data;
-
-	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
-	int64_t qp = obs_data_get_int(settings, "cqp");
-	const char *preset = obs_data_get_string(settings, "preset");
-	const char *profile = obs_data_get_string(settings, "profile");
-	const char *rc_str = obs_data_get_string(settings, "rate_control");
-
-	int rc = get_avc_rate_control(settings);
-
-	set_avc_property(enc, RATE_CONTROL_METHOD, rc);
-	set_avc_property(enc, ENABLE_VBAQ, true);
-
 	if (rc != AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
 		set_avc_property(enc, TARGET_BITRATE, bitrate);
 		set_avc_property(enc, PEAK_BITRATE, bitrate);
@@ -1002,6 +988,49 @@ static bool amf_avc_update(void *data, obs_data_t *settings)
 		set_avc_property(enc, QP_P, qp);
 		set_avc_property(enc, QP_B, qp);
 	}
+}
+
+static bool amf_avc_update(void *data, obs_data_t *settings)
+try {
+	amf_base *enc = (amf_base *)data;
+
+	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
+	int64_t qp = obs_data_get_int(settings, "cqp");
+	const char *rc_str = obs_data_get_string(settings, "rate_control");
+	int rc = get_avc_rate_control(rc_str);
+	AMF_RESULT res;
+
+	amf_avc_update_data(enc, rc, bitrate, qp);
+
+	res = enc->amf_encoder->ReInit(enc->cx, enc->cy);
+	if (res != AMF_OK)
+		throw amf_error("AMFComponent::Init failed", res);
+
+	return true;
+
+} catch (const amf_error &err) {
+	amf_base *enc = (amf_base *)data;
+	error("%s: %s: %s", __FUNCTION__, err.str,
+	      amf_trace->GetResultText(err.res));
+	return false;
+}
+
+static bool amf_avc_init(void *data, obs_data_t *settings)
+{
+	amf_base *enc = (amf_base *)data;
+
+	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
+	int64_t qp = obs_data_get_int(settings, "cqp");
+	const char *preset = obs_data_get_string(settings, "preset");
+	const char *profile = obs_data_get_string(settings, "profile");
+	const char *rc_str = obs_data_get_string(settings, "rate_control");
+
+	int rc = get_avc_rate_control(rc_str);
+
+	set_avc_property(enc, RATE_CONTROL_METHOD, rc);
+	set_avc_property(enc, ENABLE_VBAQ, true);
+
+	amf_avc_update_data(enc, rc, bitrate, qp);
 
 	set_avc_property(enc, ENFORCE_HRD, true);
 	set_avc_property(enc, HIGH_MOTION_QUALITY_BOOST_ENABLE, false);
@@ -1064,7 +1093,7 @@ static void amf_avc_create_internal(amf_base *enc, obs_data_t *settings)
 	set_avc_property(enc, OUTPUT_COLOR_PRIMARIES, enc->amf_primaries);
 	set_avc_property(enc, FULL_RANGE_COLOR, enc->full_range);
 
-	amf_avc_update(enc, settings);
+	amf_avc_init(enc, settings);
 
 	res = enc->amf_encoder->Init(enc->amf_format, enc->cx, enc->cy);
 	if (res != AMF_OK)
@@ -1148,16 +1177,19 @@ static void register_avc()
 	amf_encoder_info.get_name = amf_avc_get_name;
 	amf_encoder_info.create = amf_avc_create_texencode;
 	amf_encoder_info.destroy = amf_destroy;
+	amf_encoder_info.update = amf_avc_update;
 	amf_encoder_info.encode_texture = amf_encode_tex;
 	amf_encoder_info.get_defaults = amf_defaults;
 	amf_encoder_info.get_properties = amf_avc_properties;
 	amf_encoder_info.get_extra_data = amf_extra_data;
-	amf_encoder_info.caps = OBS_ENCODER_CAP_PASS_TEXTURE;
+	amf_encoder_info.caps = OBS_ENCODER_CAP_PASS_TEXTURE |
+				OBS_ENCODER_CAP_DYN_BITRATE;
 
 	obs_register_encoder(&amf_encoder_info);
 
 	amf_encoder_info.id = "h264_fallback_amf";
-	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL;
+	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL |
+				OBS_ENCODER_CAP_DYN_BITRATE;
 	amf_encoder_info.encode_texture = nullptr;
 	amf_encoder_info.create = amf_avc_create_fallback;
 	amf_encoder_info.encode = amf_encode_fallback;
@@ -1188,35 +1220,20 @@ static inline int get_hevc_preset(obs_data_t *settings)
 	return AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY;
 }
 
-static inline int get_hevc_rate_control(obs_data_t *settings)
+static inline int get_hevc_rate_control(const char *rc_str)
 {
-	const char *rc = obs_data_get_string(settings, "rate_control");
-
-	if (astrcmpi(rc, "cqp") == 0)
+	if (astrcmpi(rc_str, "cqp") == 0)
 		return AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP;
-	else if (astrcmpi(rc, "vbr") == 0)
+	else if (astrcmpi(rc_str, "vbr") == 0)
 		return AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR;
 
 	return AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR;
 }
 
-static bool amf_hevc_update(void *data, obs_data_t *settings)
+static void amf_hevc_update_data(amf_base *enc, int rc, int64_t bitrate,
+				 int64_t qp)
 {
-	amf_base *enc = (amf_base *)data;
-
-	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
-	int64_t qp = obs_data_get_int(settings, "cqp");
-	const char *preset = obs_data_get_string(settings, "preset");
-	const char *profile = obs_data_get_string(settings, "profile");
-	const char *rc_str = obs_data_get_string(settings, "rate_control");
-
-	int rc = get_hevc_rate_control(settings);
-
-	set_hevc_property(enc, RATE_CONTROL_METHOD, rc);
-	set_hevc_property(enc, ENABLE_VBAQ, true);
-
 	if (rc != AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP) {
-		int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
 		set_hevc_property(enc, TARGET_BITRATE, bitrate);
 		set_hevc_property(enc, PEAK_BITRATE, bitrate);
 		set_hevc_property(enc, VBV_BUFFER_SIZE, bitrate);
@@ -1225,10 +1242,51 @@ static bool amf_hevc_update(void *data, obs_data_t *settings)
 			set_hevc_property(enc, FILLER_DATA_ENABLE, true);
 		}
 	} else {
-		int64_t qp = obs_data_get_int(settings, "cqp");
 		set_hevc_property(enc, QP_I, qp);
 		set_hevc_property(enc, QP_P, qp);
 	}
+}
+
+static bool amf_hevc_update(void *data, obs_data_t *settings)
+try {
+	amf_base *enc = (amf_base *)data;
+
+	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
+	int64_t qp = obs_data_get_int(settings, "cqp");
+	const char *rc_str = obs_data_get_string(settings, "rate_control");
+	int rc = get_hevc_rate_control(rc_str);
+	AMF_RESULT res;
+
+	amf_hevc_update_data(enc, rc, bitrate, qp);
+
+	res = enc->amf_encoder->ReInit(enc->cx, enc->cy);
+	if (res != AMF_OK)
+		throw amf_error("AMFComponent::Init failed", res);
+
+	return true;
+
+} catch (const amf_error &err) {
+	amf_base *enc = (amf_base *)data;
+	error("%s: %s: %s", __FUNCTION__, err.str,
+	      amf_trace->GetResultText(err.res));
+	return false;
+}
+
+static bool amf_hevc_init(void *data, obs_data_t *settings)
+{
+	amf_base *enc = (amf_base *)data;
+
+	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
+	int64_t qp = obs_data_get_int(settings, "cqp");
+	const char *preset = obs_data_get_string(settings, "preset");
+	const char *profile = obs_data_get_string(settings, "profile");
+	const char *rc_str = obs_data_get_string(settings, "rate_control");
+	int rc = get_hevc_rate_control(rc_str);
+
+	set_hevc_property(enc, RATE_CONTROL_METHOD, rc);
+	set_hevc_property(enc, ENABLE_VBAQ, true);
+
+	amf_hevc_update_data(enc, rc, bitrate, qp);
 
 	set_hevc_property(enc, ENFORCE_HRD, true);
 	set_hevc_property(enc, HIGH_MOTION_QUALITY_BOOST_ENABLE, false);
@@ -1349,7 +1407,7 @@ static void amf_hevc_create_internal(amf_base *enc, obs_data_t *settings)
 		set_hevc_property(enc, INPUT_HDR_METADATA, buf);
 	}
 
-	amf_hevc_update(enc, settings);
+	amf_hevc_init(enc, settings);
 
 	res = enc->amf_encoder->Init(enc->amf_format, enc->cx, enc->cy);
 	if (res != AMF_OK)
@@ -1417,16 +1475,19 @@ static void register_hevc()
 	amf_encoder_info.get_name = amf_hevc_get_name;
 	amf_encoder_info.create = amf_hevc_create_texencode;
 	amf_encoder_info.destroy = amf_destroy;
+	amf_encoder_info.update = amf_hevc_update;
 	amf_encoder_info.encode_texture = amf_encode_tex;
 	amf_encoder_info.get_defaults = amf_defaults;
 	amf_encoder_info.get_properties = amf_hevc_properties;
 	amf_encoder_info.get_extra_data = amf_extra_data;
-	amf_encoder_info.caps = OBS_ENCODER_CAP_PASS_TEXTURE;
+	amf_encoder_info.caps = OBS_ENCODER_CAP_PASS_TEXTURE |
+				OBS_ENCODER_CAP_DYN_BITRATE;
 
 	obs_register_encoder(&amf_encoder_info);
 
 	amf_encoder_info.id = "h265_fallback_amf";
-	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL;
+	amf_encoder_info.caps = OBS_ENCODER_CAP_INTERNAL |
+				OBS_ENCODER_CAP_DYN_BITRATE;
 	amf_encoder_info.encode_texture = nullptr;
 	amf_encoder_info.create = amf_hevc_create_fallback;
 	amf_encoder_info.encode = amf_encode_fallback;
