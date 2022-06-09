@@ -107,6 +107,7 @@ struct amf_base {
 	bool full_range;
 	bool bframes_supported = false;
 	bool using_bframes = false;
+	bool first_update = true;
 
 	inline amf_base(bool fallback) : fallback(fallback) {}
 	virtual ~amf_base() = default;
@@ -994,6 +995,11 @@ static bool amf_avc_update(void *data, obs_data_t *settings)
 try {
 	amf_base *enc = (amf_base *)data;
 
+	if (enc->first_update) {
+		enc->first_update = false;
+		return true;
+	}
+
 	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
 	int64_t qp = obs_data_get_int(settings, "cqp");
 	const char *rc_str = obs_data_get_string(settings, "rate_control");
@@ -1250,6 +1256,11 @@ static void amf_hevc_update_data(amf_base *enc, int rc, int64_t bitrate,
 static bool amf_hevc_update(void *data, obs_data_t *settings)
 try {
 	amf_base *enc = (amf_base *)data;
+
+	if (enc->first_update) {
+		enc->first_update = false;
+		return true;
+	}
 
 	int64_t bitrate = obs_data_get_int(settings, "bitrate") * 1000;
 	int64_t qp = obs_data_get_int(settings, "cqp");
