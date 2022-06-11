@@ -432,41 +432,52 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 		packet->dts -= 2;
 }
 
+#ifndef SEC_TO_NSEC
+#define SEC_TO_NSEC 1000000000ULL
+#endif
+
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
 {
+	uint64_t ts_start = os_gettime_ns();
 	AMFDataPtr amf_out;
 	AMF_RESULT res;
 
-	for (;;) {
-		res = enc->amf_encoder->SubmitInput(amf_surf);
-		if (res == AMF_OK)
-			break;
+	*received_packet = false;
 
-		if (res == AMF_INPUT_FULL) {
+	bool waiting = true;
+	while (waiting) {
+		res = enc->amf_encoder->SubmitInput(amf_surf);
+
+		if (res == AMF_OK || res == AMF_NEED_MORE_INPUT) {
+			waiting = false;
+
+		} else if (res == AMF_INPUT_FULL) {
 			os_sleep_ms(1);
 
-		} else if (res == AMF_NEED_MORE_INPUT) {
-			*received_packet = false;
-			return;
+			uint64_t duration = os_gettime_ns() - ts_start;
+			constexpr uint64_t timeout = 1 * SEC_TO_NSEC;
 
+			if (duration >= timeout) {
+				throw amf_error("SubmitInput timed out", res);
+			}
 		} else {
 			throw amf_error("SubmitInput failed", res);
 		}
+
+		if (!amf_out) {
+			res = enc->amf_encoder->QueryOutput(&amf_out);
+
+			if (res != AMF_REPEAT && res != AMF_OK) {
+				throw amf_error("QueryOutput failed", res);
+			}
+		}
 	}
 
-	res = enc->amf_encoder->QueryOutput(&amf_out);
-
-	if (res == AMF_REPEAT) {
-		*received_packet = false;
-		return;
-
-	} else if (res != AMF_OK) {
-		throw amf_error("QueryOutput failed", res);
+	if (amf_out) {
+		*received_packet = true;
+		convert_to_encoder_packet(enc, amf_out, packet);
 	}
-
-	*received_packet = true;
-	convert_to_encoder_packet(enc, amf_out, packet);
 }
 
 static bool amf_encode_tex(void *data, uint32_t handle, int64_t pts,
