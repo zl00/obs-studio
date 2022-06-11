@@ -537,7 +537,7 @@ try {
 
 } catch (const amf_error &err) {
 	amf_texencode *enc = (amf_texencode *)data;
-	error("%s: %s: %s", __FUNCTION__, err.str,
+	error("%s: %s: %ls", __FUNCTION__, err.str,
 	      amf_trace->GetResultText(err.res));
 	*received_packet = false;
 	return false;
@@ -643,7 +643,7 @@ try {
 
 } catch (const amf_error &err) {
 	amf_fallback *enc = (amf_fallback *)data;
-	error("%s: %s: %s", __FUNCTION__, err.str,
+	error("%s: %s: %ls", __FUNCTION__, err.str,
 	      amf_trace->GetResultText(err.res));
 	*received_packet = false;
 	return false;
@@ -801,7 +801,7 @@ try {
 	return true;
 
 } catch (const amf_error &err) {
-	error("%s: %s: %s", __FUNCTION__, err.str,
+	error("%s: %s: %ls", __FUNCTION__, err.str,
 	      amf_trace->GetResultText(err.res));
 	return false;
 }
@@ -1015,7 +1015,7 @@ try {
 
 } catch (const amf_error &err) {
 	amf_base *enc = (amf_base *)data;
-	error("%s: %s: %s", __FUNCTION__, err.str,
+	error("%s: %s: %ls", __FUNCTION__, err.str,
 	      amf_trace->GetResultText(err.res));
 	return false;
 }
@@ -1144,7 +1144,7 @@ try {
 	return enc;
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %s", __FUNCTION__, err.str,
+	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %ls", __FUNCTION__, err.str,
 	     amf_trace->GetResultText(err.res));
 	return obs_encoder_create_rerouted(encoder, "h264_fallback_amf");
 
@@ -1164,7 +1164,7 @@ try {
 	return enc;
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %s", __FUNCTION__, err.str,
+	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %ls", __FUNCTION__, err.str,
 	     amf_trace->GetResultText(err.res));
 	return nullptr;
 
@@ -1277,7 +1277,7 @@ try {
 
 } catch (const amf_error &err) {
 	amf_base *enc = (amf_base *)data;
-	error("%s: %s: %s", __FUNCTION__, err.str,
+	error("%s: %s: %ls", __FUNCTION__, err.str,
 	      amf_trace->GetResultText(err.res));
 	return false;
 }
@@ -1447,7 +1447,7 @@ try {
 	return enc;
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %s", __FUNCTION__, err.str,
+	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %ls", __FUNCTION__, err.str,
 	     amf_trace->GetResultText(err.res));
 	return obs_encoder_create_rerouted(encoder, "h265_fallback_amf");
 
@@ -1467,7 +1467,7 @@ try {
 	return enc;
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %s", __FUNCTION__, err.str,
+	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %ls", __FUNCTION__, err.str,
 	     amf_trace->GetResultText(err.res));
 	return nullptr;
 
