@@ -128,7 +128,6 @@ struct amf_texencode : amf_base, public AMFSurfaceObserver {
 
 	ComPtr<ID3D11Device> device;
 	ComPtr<ID3D11DeviceContext> context;
-	ComPtr<ID3D11Texture2D> texture;
 
 	inline amf_texencode() : amf_base(false) {}
 	~amf_texencode() { os_atomic_set_bool(&destroying, true); }
