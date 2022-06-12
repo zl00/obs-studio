@@ -432,10 +432,6 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 		packet->dts -= 2;
 }
 
-#ifndef MSEC_TO_NSEC
-#define MSEC_TO_NSEC 1000000ULL
-#endif
-
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
 {
