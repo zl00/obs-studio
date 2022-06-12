@@ -446,6 +446,7 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 	*received_packet = false;
 
 	bool waiting = true;
+	bool first_sleep = true;
 	while (waiting) {
 		res = enc->amf_encoder->SubmitInput(amf_surf);
 
@@ -453,7 +454,10 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			waiting = false;
 
 		} else if (res == AMF_INPUT_FULL) {
-			os_sleep_ms(1);
+			if (first_sleep)
+				first_sleep = false;
+			else
+				os_sleep_ms(1);
 
 			uint64_t duration = os_gettime_ns() - ts_start;
 			constexpr uint64_t timeout = 1 * SEC_TO_NSEC;
