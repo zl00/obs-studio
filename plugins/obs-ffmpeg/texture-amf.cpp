@@ -432,38 +432,39 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 		packet->dts -= 2;
 }
 
-#ifndef SEC_TO_NSEC
-#define SEC_TO_NSEC 1000000000ULL
+#ifndef MSEC_TO_NSEC
+#define MSEC_TO_NSEC 1000000ULL
 #endif
 
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
 {
-	uint64_t ts_start = os_gettime_ns();
 	AMFDataPtr amf_out;
 	AMF_RESULT res;
 
 	*received_packet = false;
 
-	bool waiting = true;
-	bool first_sleep = true;
-	while (waiting) {
+	bool looping = true;
+	bool first_loop = true;
+	while (looping) {
 		res = enc->amf_encoder->SubmitInput(amf_surf);
 
 		if (res == AMF_OK || res == AMF_NEED_MORE_INPUT) {
-			waiting = false;
+			looping = false;
 
 		} else if (res == AMF_INPUT_FULL) {
-			if (first_sleep)
-				first_sleep = false;
-			else
-				os_sleep_ms(1);
-
-			uint64_t duration = os_gettime_ns() - ts_start;
-			constexpr uint64_t timeout = 1 * SEC_TO_NSEC;
-
-			if (duration >= timeout) {
-				throw amf_error("SubmitInput timed out", res);
+			if (first_loop) {
+				first_loop = false;
+			} else {
+				/* I guess we're just.. ditching the frame or
+				 * something. whatever. if the device seriously
+				 * can't handle submitting frames then it's
+				 * really the responsibility of the user to get
+				 * a more up-to-date device at that point.
+				 *
+				 * it's litter. toss it in the bin where it
+				 * belongs. */
+				looping = false;
 			}
 		} else {
 			throw amf_error("SubmitInput failed", res);
