@@ -464,7 +464,7 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 
 			uint64_t duration = os_gettime_ns() - ts_start;
 			constexpr uint64_t msec_to_nsec = 1000000;
-			constexpr uint64_t timeout = 200 * msec_to_nsec;
+			constexpr uint64_t timeout = 50 * msec_to_nsec;
 
 			if (duration >= timeout) {
 				throw amf_error("SubmitInput timed out", res);
