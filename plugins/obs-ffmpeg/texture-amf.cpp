@@ -73,6 +73,7 @@ static AMFFactory *amf_factory = nullptr;
 static AMFTrace *amf_trace = nullptr;
 static HMODULE amf_module = nullptr;
 static uint64_t amf_version = 0;
+static constexpr amf_int64 query_timeout_ms = 5;
 
 /* ========================================================================= */
 /* Main Implementation                                                       */
@@ -432,10 +433,6 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 		packet->dts -= 2;
 }
 
-#ifndef SEC_TO_NSEC
-#define SEC_TO_NSEC 1000000000ULL
-#endif
-
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
 {
@@ -446,7 +443,6 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 	*received_packet = false;
 
 	bool waiting = true;
-	bool first_sleep = true;
 	while (waiting) {
 		res = enc->amf_encoder->SubmitInput(amf_surf);
 
@@ -454,13 +450,17 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			waiting = false;
 
 		} else if (res == AMF_INPUT_FULL) {
-			if (first_sleep)
-				first_sleep = false;
-			else
-				os_sleep_ms(1);
+
+			/* This should generally only happen until
+			 * QueryOutput() returns an encoded frame. It's fine to
+			 * stall the encoder until that point. Stalling is
+			 * allowable and handled by OBS. To be extra safe and
+			 * eliminate the possibility of endless looping, add a
+			 * timeout in this call */
 
 			uint64_t duration = os_gettime_ns() - ts_start;
-			constexpr uint64_t timeout = 1 * SEC_TO_NSEC;
+			constexpr uint64_t msec_to_nsec = 1000000;
+			constexpr uint64_t timeout = 200 * msec_to_nsec;
 
 			if (duration >= timeout) {
 				throw amf_error("SubmitInput timed out", res);
@@ -470,6 +470,8 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 		}
 
 		if (!amf_out) {
+			/* will block until timeout (query_timeout_ms) or until
+			 * ready */
 			res = enc->amf_encoder->QueryOutput(&amf_out);
 
 			if (res != AMF_REPEAT && res != AMF_OK) {
@@ -1112,6 +1114,7 @@ static void amf_avc_create_internal(amf_base *enc, obs_data_t *settings)
 			 enc->amf_characteristic);
 	set_avc_property(enc, OUTPUT_COLOR_PRIMARIES, enc->amf_primaries);
 	set_avc_property(enc, FULL_RANGE_COLOR, enc->full_range);
+	set_avc_property(enc, QUERY_TIMEOUT, query_timeout_ms);
 
 	amf_avc_init(enc, settings);
 
@@ -1410,6 +1413,7 @@ static void amf_hevc_create_internal(amf_base *enc, obs_data_t *settings)
 			  enc->amf_characteristic);
 	set_hevc_property(enc, OUTPUT_COLOR_PRIMARIES, enc->amf_primaries);
 	set_hevc_property(enc, NOMINAL_RANGE, enc->full_range);
+	set_hevc_property(enc, QUERY_TIMEOUT, query_timeout_ms);
 
 	if (is_hdr) {
 		AMFBufferPtr buf;
