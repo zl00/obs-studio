@@ -94,6 +94,8 @@ struct amf_base {
 	AMFRate amf_frame_rate;
 	AMFBufferPtr header;
 
+	std::deque<AMFDataPtr> queued_packets;
+
 	AMF_VIDEO_CONVERTER_COLOR_PROFILE_ENUM amf_color_profile;
 	AMF_COLOR_TRANSFER_CHARACTERISTIC_ENUM amf_characteristic;
 	AMF_COLOR_PRIMARIES_ENUM amf_primaries;
@@ -435,49 +437,51 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
 {
+	auto &queued_packets = enc->queued_packets;
 	uint64_t ts_start = os_gettime_ns();
-	AMFDataPtr amf_out;
 	AMF_RESULT res;
 
 	*received_packet = false;
 
 	bool waiting = true;
 	while (waiting) {
+		/* ----------------------------------- */
+		/* submit frame                        */
+
 		res = enc->amf_encoder->SubmitInput(amf_surf);
 
 		if (res == AMF_OK || res == AMF_NEED_MORE_INPUT) {
 			waiting = false;
 
-		} else if (res == AMF_INPUT_FULL) {
-			/* This should generally only happen until
-			 * QueryOutput() returns an encoded frame. It's fine to
-			 * stall the encoder until that point. Stalling is
-			 * allowable and handled by OBS. To be extra safe and
-			 * eliminate the possibility of endless looping, it
-			 * will timeout after ~50 milliseconds */
-
-			uint64_t duration = os_gettime_ns() - ts_start;
-			constexpr uint64_t msec_to_nsec = 1000000;
-			constexpr uint64_t timeout = 50 * msec_to_nsec;
-
-			if (duration >= timeout) {
-				throw amf_error("SubmitInput timed out", res);
-			}
-		} else {
+		} else if (res != AMF_INPUT_FULL) {
 			throw amf_error("SubmitInput failed", res);
 		}
 
-		if (!amf_out) {
+		/* ----------------------------------- */
+		/* query as many packets as possible   */
+
+		do {
 			/* can block for 1ms */
-			res = enc->amf_encoder->QueryOutput(&amf_out);
+			AMFDataPtr new_packet;
+			res = enc->amf_encoder->QueryOutput(&new_packet);
+			if (new_packet)
+				queued_packets.push_back(new_packet);
 
 			if (res != AMF_REPEAT && res != AMF_OK) {
 				throw amf_error("QueryOutput failed", res);
 			}
-		}
+		} while (res == AMF_OK);
 	}
 
-	if (amf_out) {
+	/* ----------------------------------- */
+	/* return a packet if available        */
+
+	if (queued_packets.size()) {
+		AMFDataPtr amf_out;
+
+		amf_out = queued_packets.front();
+		queued_packets.pop_front();
+
 		*received_packet = true;
 		convert_to_encoder_packet(enc, amf_out, packet);
 	}
