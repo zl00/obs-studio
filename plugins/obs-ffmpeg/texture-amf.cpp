@@ -464,10 +464,8 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 		do {
 			/* can block for 1ms */
 			res = enc->amf_encoder->QueryOutput(&new_packet);
-			if (new_packet) {
+			if (new_packet)
 				queued_packets.push_back(new_packet);
-				new_packet.Release();
-			}
 
 			if (res != AMF_REPEAT && res != AMF_OK) {
 				throw amf_error("QueryOutput failed", res);
