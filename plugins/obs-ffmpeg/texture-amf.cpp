@@ -95,6 +95,7 @@ struct amf_base {
 	AMFBufferPtr header;
 
 	std::deque<AMFDataPtr> queued_packets;
+	int last_query_timeout_ms = 0;
 
 	AMF_VIDEO_CONVERTER_COLOR_PROFILE_ENUM amf_color_profile;
 	AMF_COLOR_TRANSFER_CHARACTERISTIC_ENUM amf_characteristic;
@@ -449,12 +450,21 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 		/* submit frame                        */
 
 		res = enc->amf_encoder->SubmitInput(amf_surf);
+		int timeout = 0;
 
 		if (res == AMF_OK || res == AMF_NEED_MORE_INPUT) {
 			waiting = false;
 
-		} else if (res != AMF_INPUT_FULL) {
+		} else if (res == AMF_INPUT_FULL) {
+			timeout = 1;
+
+		} else {
 			throw amf_error("SubmitInput failed", res);
+		}
+
+		if (enc->last_query_timeout_ms != timeout) {
+			set_opt(QUERY_TIMEOUT, timeout);
+			enc->last_query_timeout_ms = timeout;
 		}
 
 		/* ----------------------------------- */
@@ -462,7 +472,6 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 
 		AMFDataPtr new_packet;
 		do {
-			/* can block for 1ms */
 			res = enc->amf_encoder->QueryOutput(&new_packet);
 			if (new_packet)
 				queued_packets.push_back(new_packet);
@@ -1115,7 +1124,6 @@ static void amf_avc_create_internal(amf_base *enc, obs_data_t *settings)
 			 enc->amf_characteristic);
 	set_avc_property(enc, OUTPUT_COLOR_PRIMARIES, enc->amf_primaries);
 	set_avc_property(enc, FULL_RANGE_COLOR, enc->full_range);
-	set_avc_property(enc, QUERY_TIMEOUT, 1);
 
 	amf_avc_init(enc, settings);
 
@@ -1414,7 +1422,6 @@ static void amf_hevc_create_internal(amf_base *enc, obs_data_t *settings)
 			  enc->amf_characteristic);
 	set_hevc_property(enc, OUTPUT_COLOR_PRIMARIES, enc->amf_primaries);
 	set_hevc_property(enc, NOMINAL_RANGE, enc->full_range);
-	set_hevc_property(enc, QUERY_TIMEOUT, 1);
 
 	if (is_hdr) {
 		AMFBufferPtr buf;
