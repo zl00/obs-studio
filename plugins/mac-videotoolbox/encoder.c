@@ -25,6 +25,7 @@ static DARRAY(struct vt_encoder_list_item {
 	const char *disp_name;
 	const char *id;
 	const char *codec_name;
+	bool hardware_accelerated;
 }) vt_encoder_list;
 
 struct vt_encoder {
@@ -912,10 +913,8 @@ static bool rate_control_limit_bitrate_modified(obs_properties_t *ppts,
 	return true;
 }
 
-static obs_properties_t *vt_properties(void *unused)
+static obs_properties_t *vt_properties(bool hardware)
 {
-	UNUSED_PARAMETER(unused);
-
 	obs_properties_t *props = obs_properties_create();
 	obs_property_t *p;
 
@@ -924,14 +923,18 @@ static obs_properties_t *vt_properties(void *unused)
 				    OBS_COMBO_FORMAT_STRING);
 
 	if (__builtin_available(macOS 13.0, *))
+		if (hardware
 #ifndef __aarch64__
-		if (os_get_emulation_status() == true)
+		    && (os_get_emulation_status() == true)
 #endif
+		)
 			obs_property_list_add_string(p, "CBR", "CBR");
 	obs_property_list_add_string(p, "ABR", "ABR");
+	if (hardware
 #ifndef __aarch64__
-	if (os_get_emulation_status() == true)
+	    && (os_get_emulation_status() == true)
 #endif
+	)
 		obs_property_list_add_string(p, "CRF", "CRF");
 	obs_property_set_modified_callback(p,
 					   rate_control_limit_bitrate_modified);
@@ -969,13 +972,27 @@ static obs_properties_t *vt_properties(void *unused)
 	return props;
 }
 
-static void vt_defaults(obs_data_t *settings)
+static obs_properties_t *vt_properties_hw(void *unused)
+{
+	UNUSED_PARAMETER(unused);
+	return vt_properties(true);
+}
+
+static obs_properties_t *vt_properties_sw(void *unused)
+{
+	UNUSED_PARAMETER(unused);
+	return vt_properties(false);
+}
+
+static void vt_defaults(obs_data_t *settings, bool hardware)
 {
 	obs_data_set_default_string(settings, "rate_control", "ABR");
 	if (__builtin_available(macOS 13.0, *))
+		if (hardware
 #ifndef __aarch64__
-		if (os_get_emulation_status() == true)
+		    && (os_get_emulation_status() == true)
 #endif
+		)
 			obs_data_set_default_string(settings, "rate_control",
 						    "CBR");
 	obs_data_set_default_int(settings, "bitrate", 2500);
@@ -986,6 +1003,16 @@ static void vt_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "keyint_sec", 0);
 	obs_data_set_default_string(settings, "profile", "");
 	obs_data_set_default_bool(settings, "bframes", true);
+}
+
+static void vt_defaults_hw(obs_data_t *settings)
+{
+	return vt_defaults(settings, true);
+}
+
+static void vt_defaults_sw(obs_data_t *settings)
+{
+	return vt_defaults(settings, false);
 }
 
 OBS_DECLARE_MODULE()
@@ -1015,11 +1042,20 @@ void encoder_list_create()
 		VT_DICTSTR(kVTVideoEncoderList_EncoderName, name);
 		VT_DICTSTR(kVTVideoEncoderList_EncoderID, id);
 		VT_DICTSTR(kVTVideoEncoderList_DisplayName, disp_name);
+
+		CFBooleanRef hardware_ref = CFDictionaryGetValue(
+			encoder_dict,
+			kVTVideoEncoderList_IsHardwareAccelerated);
+		bool hardware_accelerated = false;
+		if (hardware_ref)
+			hardware_accelerated = CFBooleanGetValue(hardware_ref);
+
 		struct vt_encoder_list_item enc = {
 			.name = name,
 			.id = id,
 			.disp_name = disp_name,
 			.codec_name = codec_name,
+			.hardware_accelerated = hardware_accelerated,
 		};
 		da_push_back(vt_encoder_list, &enc);
 #undef VT_DICTSTR
@@ -1049,8 +1085,6 @@ void register_encoders()
 		.destroy = vt_destroy,
 		.encode = vt_encode,
 		.update = vt_update,
-		.get_properties = vt_properties,
-		.get_defaults = vt_defaults,
 		.get_video_info = vt_video_info,
 		.get_extra_data = vt_extra_data,
 		.caps = OBS_ENCODER_CAP_DYN_BITRATE,
@@ -1059,6 +1093,12 @@ void register_encoders()
 	for (size_t i = 0; i < vt_encoder_list.num; i++) {
 		info.id = vt_encoder_list.array[i].id;
 		info.type_data = (void *)i;
+
+		bool hardware = vt_encoder_list.array[i].hardware_accelerated;
+		info.get_properties = hardware ? vt_properties_hw
+					       : vt_properties_sw,
+		info.get_defaults = hardware ? vt_defaults_hw : vt_defaults_sw,
+
 		obs_register_encoder(&info);
 	}
 }
