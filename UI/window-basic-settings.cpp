@@ -4783,6 +4783,14 @@ void OBSBasicSettings::FillSimpleRecordingValues()
 		ui->simpleOutRecEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
+	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")
+#ifndef __aarch64__
+	    && os_get_emulation_status() == true
+#endif
+	)
+		ui->simpleOutRecEncoder->addItem(
+			ENCODER_STR("Hardware.Apple.H264"),
+			QString(SIMPLE_ENCODER_APPLE_H264));
 #undef ADD_QUALITY
 }
 
@@ -4808,6 +4816,18 @@ void OBSBasicSettings::FillSimpleStreamingValues()
 		ui->simpleOutStrEncoder->addItem(
 			ENCODER_STR("Hardware.AMD.H264"),
 			QString(SIMPLE_ENCODER_AMD));
+/* Preprocessor guard required for the macOS version check */
+#ifdef __APPLE__
+	if (EncoderAvailable("com.apple.videotoolbox.videoencoder.ave.avc")
+#ifndef __aarch64__
+	    && os_get_emulation_status() == true
+#endif
+	)
+		if (__builtin_available(macOS 13.0, *))
+			ui->simpleOutStrEncoder->addItem(
+				ENCODER_STR("Hardware.Apple.H264"),
+				QString(SIMPLE_ENCODER_APPLE_H264));
+#endif
 #undef ENCODER_STR
 }
 
@@ -4850,6 +4870,9 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 	QString preset;
 	const char *defaultPreset = nullptr;
 
+	ui->simpleOutAdvanced->setVisible(true);
+	ui->simpleOutPresetLabel->setVisible(true);
+	ui->simpleOutPreset->setVisible(true);
 	ui->simpleOutPreset->clear();
 
 	if (encoder == SIMPLE_ENCODER_QSV) {
@@ -4921,6 +4944,11 @@ void OBSBasicSettings::SimpleStreamingEncoderChanged()
 
 		defaultPreset = "balanced";
 		preset = curAMDPreset;
+	} else if (encoder == SIMPLE_ENCODER_APPLE_H264) {
+		ui->simpleOutAdvanced->setChecked(false);
+		ui->simpleOutAdvanced->setVisible(false);
+		ui->simpleOutPreset->setVisible(false);
+		ui->simpleOutPresetLabel->setVisible(false);
 	} else {
 
 #define PRESET_STR(val) \
