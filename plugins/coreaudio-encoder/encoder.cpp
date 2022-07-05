@@ -658,10 +658,9 @@ static void *aac_create(obs_data_t *settings, obs_encoder_t *encoder)
 	}
 
 	const char *format_name =
-		out.mFormatID == kAudioFormatMPEG4AAC_HE_V2
-			? "HE-AAC v2"
-			: out.mFormatID == kAudioFormatMPEG4AAC_HE ? "HE-AAC"
-								   : "AAC";
+		out.mFormatID == kAudioFormatMPEG4AAC_HE_V2 ? "HE-AAC v2"
+		: out.mFormatID == kAudioFormatMPEG4AAC_HE  ? "HE-AAC"
+							    : "AAC";
 	CA_BLOG(LOG_INFO,
 		"settings:\n"
 		"\tmode:          %s\n"
@@ -1382,8 +1381,7 @@ bool obs_module_load(void)
 	CA_LOG(LOG_INFO, "Adding CoreAudio AAC encoder");
 #endif
 
-	struct obs_encoder_info aac_info {
-	};
+	struct obs_encoder_info aac_info {};
 	aac_info.id = "CoreAudio_AAC";
 	aac_info.type = OBS_ENCODER_AUDIO;
 	aac_info.codec = "AAC";
