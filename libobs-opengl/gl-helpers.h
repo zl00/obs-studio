@@ -197,6 +197,18 @@ static inline bool gl_get_integer_v(GLenum pname, GLint *params)
 	return gl_success("glGetIntegerv");
 }
 
+static inline bool gl_gen_framebuffers(GLsizei num_arrays, GLuint *arrays)
+{
+    glGenFramebuffers(num_arrays, arrays);
+    return gl_success("glGenFramebuffers");
+}
+
+static inline void gl_delete_framebuffers(GLsizei num_arrays, GLuint *arrays)
+{
+    glDeleteFramebuffers(num_arrays, arrays);
+    gl_success("glDeleteFramebuffers");
+}
+
 extern bool gl_init_face(GLenum target, GLenum type, uint32_t num_levels,
 			 GLenum format, GLint internal_format, bool compressed,
 			 uint32_t width, uint32_t height, uint32_t size,
