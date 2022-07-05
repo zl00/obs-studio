@@ -639,7 +639,10 @@ public:
 		cy = previewCY;
 	}
 
-	inline bool SavingDisabled() const { return disableSaving; }
+	inline bool SavingDisabled() const
+	{
+		return disableSaving;
+	}
 
 	inline double GetCPUUsage() const
 	{
@@ -649,7 +652,10 @@ public:
 	void SaveService();
 	bool LoadService();
 
-	inline Auth *GetAuth() { return auth.get(); }
+	inline Auth *GetAuth()
+	{
+		return auth.get();
+	}
 
 	inline void EnableOutputs(bool enable)
 	{

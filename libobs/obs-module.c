@@ -333,46 +333,46 @@ static bool parse_binary_from_directory(struct dstr *parsed_bin_path,
 }
 
 static void process_found_module(struct obs_module_path *omp, const char *path,
-				 bool directory,
-				 obs_find_module_callback_t callback,
-				 void *param)
+                 bool directory,
+                 obs_find_module_callback_t callback,
+                 void *param)
 {
-	struct obs_module_info info;
-	struct dstr name = {0};
-	struct dstr parsed_bin_path = {0};
-	const char *file;
-	char *parsed_data_dir;
-	bool bin_found = true;
+    struct obs_module_info info;
+    struct dstr name = {0};
+    struct dstr parsed_bin_path = {0};
+    const char *file;
+    char *parsed_data_dir;
+    bool bin_found = true;
 
-	file = strrchr(path, '/');
-	file = file ? (file + 1) : path;
+    file = strrchr(path, '/');
+    file = file ? (file + 1) : path;
 
-	if (strcmp(file, ".") == 0 || strcmp(file, "..") == 0)
-		return;
+    if (strcmp(file, ".") == 0 || strcmp(file, "..") == 0)
+        return;
 
-	dstr_copy(&name, file);
-	if (!directory) {
-		char *ext = strrchr(name.array, '.');
-		if (ext)
-			dstr_resize(&name, ext - name.array);
+    dstr_copy(&name, file);
+    char *ext = strrchr(name.array, '.');
+    if (ext)
+        dstr_resize(&name, ext - name.array);
 
-		dstr_copy(&parsed_bin_path, path);
-	} else {
-		bin_found = parse_binary_from_directory(&parsed_bin_path,
-							omp->bin, file);
-	}
+    if (!directory) {
+        dstr_copy(&parsed_bin_path, path);
+    } else {
+        bin_found = parse_binary_from_directory(&parsed_bin_path,
+                            omp->bin, name.array);
+    }
 
-	parsed_data_dir = make_data_directory(name.array, omp->data);
+    parsed_data_dir = make_data_directory(name.array, omp->data);
 
-	if (parsed_data_dir && bin_found) {
-		info.bin_path = parsed_bin_path.array;
-		info.data_path = parsed_data_dir;
-		callback(param, &info);
-	}
+    if (parsed_data_dir && bin_found) {
+        info.bin_path = parsed_bin_path.array;
+        info.data_path = parsed_data_dir;
+        callback(param, &info);
+    }
 
-	bfree(parsed_data_dir);
-	dstr_free(&name);
-	dstr_free(&parsed_bin_path);
+    bfree(parsed_data_dir);
+    dstr_free(&name);
+    dstr_free(&parsed_bin_path);
 }
 
 static void find_modules_in_path(struct obs_module_path *omp,

@@ -24,39 +24,72 @@
 #include <sys/types.h>
 #include <sys/sysctl.h>
 
-#include <objc/objc.h>
 #include <Carbon/Carbon.h>
 #include <IOKit/hid/IOHIDDevice.h>
 #include <IOKit/hid/IOHIDManager.h>
 
-const char *get_module_extension(void)
+#import <AppKit/AppKit.h>
+
+bool is_in_bundle()
 {
-	return ".so";
+	NSRunningApplication *app = [NSRunningApplication currentApplication];
+	return [app bundleIdentifier] != nil;
 }
 
-static const char *module_bin[] = {
-	"../obs-plugins",
-	OBS_INSTALL_PREFIX "obs-plugins",
-};
-
-static const char *module_data[] = {
-	"../data/obs-plugins/%module%",
-	OBS_INSTALL_DATA_PATH "obs-plugins/%module%",
-};
-
-static const int module_patterns_size =
-	sizeof(module_bin) / sizeof(module_bin[0]);
+const char *get_module_extension(void)
+{
+	return "";
+}
 
 void add_default_module_paths(void)
 {
-	for (int i = 0; i < module_patterns_size; i++)
-		obs_add_module_path(module_bin[i], module_data[i]);
+	struct dstr plugin_path;
+
+	dstr_init_move_array(&plugin_path, os_get_executable_path_ptr(""));
+	dstr_cat(&plugin_path, "../PlugIns");
+	char *abs_plugin_path = os_get_abs_path_ptr(plugin_path.array);
+
+	if (abs_plugin_path != NULL) {
+		dstr_move_array(&plugin_path, abs_plugin_path);
+		struct dstr plugin_data;
+		dstr_init_copy_dstr(&plugin_data, &plugin_path);
+		dstr_cat(&plugin_path, "/%module%.plugin/Contents/MacOS/");
+		dstr_cat(&plugin_data, "/%module%.plugin/Contents/Resources/");
+
+		obs_add_module_path(plugin_path.array, plugin_data.array);
+
+		dstr_free(&plugin_data);
+	}
+
+	dstr_free(&plugin_path);
 }
 
 char *find_libobs_data_file(const char *file)
 {
 	struct dstr path;
-	dstr_init_copy(&path, OBS_INSTALL_DATA_PATH "/libobs/");
+
+//	if (is_in_bundle()) {
+//		NSBundle *frameworkBundle = [NSBundle
+//			bundleWithIdentifier:@"com.obsproject.libobs"];
+//		NSURL *bundleURL = [frameworkBundle bundleURL];
+//		NSURL *libobsDataURL =
+//			[bundleURL URLByAppendingPathComponent:@"Contents/Resources/"];
+//		const char *libobsDataPath = [[libobsDataURL path]
+//			cStringUsingEncoding:NSUTF8StringEncoding];
+//		dstr_init_copy(&path, libobsDataPath);
+//		dstr_cat(&path, "/");
+//	} else {
+//		dstr_init_copy(&path, OBS_INSTALL_DATA_PATH "/libobs/");
+//	}
+    NSBundle *frameworkBundle = [NSBundle mainBundle];
+    NSURL *bundleURL = [frameworkBundle bundleURL];
+    NSURL *libobsDataURL =
+        [bundleURL URLByAppendingPathComponent:@"Contents/Resources/"];
+    const char *libobsDataPath = [[libobsDataURL path]
+        cStringUsingEncoding:NSUTF8StringEncoding];
+    dstr_init_copy(&path, libobsDataPath);
+    dstr_cat(&path, "/");
+
 	dstr_cat(&path, file);
 	return path.array;
 }
@@ -111,41 +144,17 @@ static void log_available_memory(void)
 		     memory_available / 1024 / 1024);
 }
 
-static void log_os_name(id pi, SEL UTF8String)
-{
-	unsigned long os_id = (unsigned long)objc_msgSend(
-		pi, sel_registerName("operatingSystem"));
-
-	id os = objc_msgSend(pi, sel_registerName("operatingSystemName"));
-	const char *name = (const char *)objc_msgSend(os, UTF8String);
-
-	if (os_id == 5 /*NSMACHOperatingSystem*/) {
-		blog(LOG_INFO, "OS Name: Mac OS X (%s)", name);
-		return;
-	}
-
-	blog(LOG_INFO, "OS Name: %s", name ? name : "Unknown");
-}
-
-static void log_os_version(id pi, SEL UTF8String)
-{
-	id vs = objc_msgSend(pi,
-			     sel_registerName("operatingSystemVersionString"));
-	const char *version = (const char *)objc_msgSend(vs, UTF8String);
-
-	blog(LOG_INFO, "OS Version: %s", version ? version : "Unknown");
-}
+static bool using_10_15_or_above = true;
 
 static void log_os(void)
 {
-	Class NSProcessInfo = objc_getClass("NSProcessInfo");
-	id pi = objc_msgSend((id)NSProcessInfo,
-			     sel_registerName("processInfo"));
+	NSProcessInfo *pi = [NSProcessInfo processInfo];
+	blog(LOG_INFO, "OS Name: Mac OS X");
+	blog(LOG_INFO, "OS Version: %s",
+	     [[pi operatingSystemVersionString] UTF8String]);
 
-	SEL UTF8String = sel_registerName("UTF8String");
-
-	log_os_name(pi, UTF8String);
-	log_os_version(pi, UTF8String);
+	NSOperatingSystemVersion catalina = {10, 15, 0};
+	using_10_15_or_above = [pi isOperatingSystemAtLeastVersion:catalina];
 }
 
 static void log_kernel_version(void)
@@ -186,6 +195,7 @@ static bool dstr_from_cfstring(struct dstr *str, CFStringRef ref)
 
 struct obs_hotkeys_platform {
 	volatile long refs;
+	bool secure_input_activated;
 	TISInputSourceRef tis;
 	CFDataRef layout_data;
 	UCKeyboardLayout *layout;
@@ -1672,11 +1682,7 @@ static bool mouse_button_pressed(obs_key_t key, bool *pressed)
 		return false;
 	}
 
-	Class NSEvent = objc_getClass("NSEvent");
-	SEL pressedMouseButtons = sel_registerName("pressedMouseButtons");
-	NSUInteger buttons =
-		(NSUInteger)objc_msgSend((id)NSEvent, pressedMouseButtons);
-
+	NSUInteger buttons = [NSEvent pressedMouseButtons];
 	*pressed = (buttons & (1 << button)) != 0;
 	return true;
 }
@@ -1694,10 +1700,27 @@ bool obs_hotkeys_platform_is_pressed(obs_hotkeys_platform_t *plat,
 	if (key >= OBS_KEY_LAST_VALUE)
 		return false;
 
+	/* if secure input is activated, kill hotkeys.
+	 *
+	 * TODO: rewrite all mac hotkey code, suspect there's a bug in 10.15
+	 * causing the crash internally.  */
+	if (plat->secure_input_activated) {
+		return false;
+	}
+
 	for (size_t i = 0; i < plat->keys[key].num;) {
 		IOHIDElementRef element = plat->keys[key].array[i];
 		IOHIDValueRef value = 0;
 		IOHIDDeviceRef device = IOHIDElementGetDevice(element);
+
+		if (device == NULL) {
+			continue;
+		}
+
+		if (using_10_15_or_above && IsSecureEventInputEnabled()) {
+			plat->secure_input_activated = true;
+			return false;
+		}
 
 		if (IOHIDDeviceGetValue(device, element, &value) !=
 		    kIOReturnSuccess) {
@@ -1719,3 +1742,18 @@ bool obs_hotkeys_platform_is_pressed(obs_hotkeys_platform_t *plat,
 
 	return false;
 }
+
+void *obs_graphics_thread_autorelease(void *param)
+{
+	@autoreleasepool {
+		return obs_graphics_thread(param);
+	}
+}
+
+// Linda
+//bool obs_graphics_thread_loop_autorelease(struct obs_graphics_context *context)
+//{
+//	@autoreleasepool {
+//		return obs_graphics_thread_loop(context);
+//	}
+//}

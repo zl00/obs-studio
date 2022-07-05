@@ -893,7 +893,7 @@ QMenu *OBSBasic::CreatePerSceneTransitionMenu()
 		obs_data_set_int(data, "transition_duration", duration);
 	};
 
-	connect(duration, (void (QSpinBox::*)(int)) & QSpinBox::valueChanged,
+	connect(duration, (void(QSpinBox::*)(int)) & QSpinBox::valueChanged,
 		setDuration);
 
 	for (int i = -1; i < ui->transitions->count(); i++) {
@@ -952,8 +952,8 @@ QMenu *OBSBasic::CreateTransitionMenu(QWidget *parent, QuickTransition *qt)
 
 	if (qt) {
 		connect(duration,
-			(void (QSpinBox::*)(int)) & QSpinBox::valueChanged,
-			this, &OBSBasic::QuickTransitionChangeDuration);
+			(void(QSpinBox::*)(int)) & QSpinBox::valueChanged, this,
+			&OBSBasic::QuickTransitionChangeDuration);
 	}
 
 	for (int i = 0; i < ui->transitions->count(); i++) {

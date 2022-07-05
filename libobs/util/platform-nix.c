@@ -54,30 +54,32 @@
 
 void *os_dlopen(const char *path)
 {
-	struct dstr dylib_name;
+    struct dstr dylib_name;
 
-	if (!path)
-		return NULL;
+    if (!path)
+        return NULL;
 
-	dstr_init_copy(&dylib_name, path);
+    dstr_init_copy(&dylib_name, path);
 #ifdef __APPLE__
-	if (!dstr_find(&dylib_name, ".so") && !dstr_find(&dylib_name, ".dylib"))
+    if (!dstr_find(&dylib_name, ".framework") &&
+        !dstr_find(&dylib_name, ".plugin") &&
+        !dstr_find(&dylib_name, ".dylib") && !dstr_find(&dylib_name, ".so"))
 #else
-	if (!dstr_find(&dylib_name, ".so"))
+    if (!dstr_find(&dylib_name, ".so"))
 #endif
-		dstr_cat(&dylib_name, ".so");
+        dstr_cat(&dylib_name, ".so");
 
 #ifdef __APPLE__
-	void *res = dlopen(dylib_name.array, RTLD_LAZY | RTLD_FIRST);
+    void *res = dlopen(dylib_name.array, RTLD_LAZY | RTLD_FIRST);
 #else
-	void *res = dlopen(dylib_name.array, RTLD_LAZY);
+    void *res = dlopen(dylib_name.array, RTLD_LAZY);
 #endif
-	if (!res)
-		blog(LOG_ERROR, "os_dlopen(%s->%s): %s\n", path,
-		     dylib_name.array, dlerror());
+    if (!res)
+        blog(LOG_ERROR, "os_dlopen(%s->%s): %s\n", path,
+             dylib_name.array, dlerror());
 
-	dstr_free(&dylib_name);
-	return res;
+    dstr_free(&dylib_name);
+    return res;
 }
 
 void *os_dlsym(void *module, const char *func)

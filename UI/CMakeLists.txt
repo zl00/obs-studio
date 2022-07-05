@@ -346,7 +346,7 @@ add_executable(obs WIN32
 	${obs_SOURCES}
 	${obs_HEADERS}
 	${obs_UI_HEADERS}
-	${obs_QRC_SOURCES})
+	${obs_QRC_SOURCES}) 
 
 if(WIN32)
 	if(CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -386,7 +386,6 @@ endif()
 define_graphic_modules(obs)
 
 install_obs_core(obs)
-install_obs_data(obs data obs-studio)
 install_obs_data_file(obs ../AUTHORS obs-studio/authors)
 
 if (UNIX AND UNIX_STRUCTURE AND NOT APPLE)
@@ -397,3 +396,45 @@ add_subdirectory(frontend-plugins)
 if(WIN32)
 	add_subdirectory(win-update/updater)
 endif()
+
+
+if(XCODE)
+	set_target_properties(
+      obs
+      PROPERTIES MACOSX_BUNDLE ON)
+
+    set_target_properties(
+      obs
+      PROPERTIES XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER
+                 "${MACOSX_BUNDLE_GUI_IDENTIFIER}"
+                 XCODE_ATTRIBUTE_ASSETCATALOG_COMPILER_APPICON_NAME AppIcon
+                 XCODE_ATTRIBUTE_PRODUCT_NAME "OBS")
+
+    set(
+	  APP_ICON_TARGET 
+	  ${CMAKE_SOURCE_DIR}/cmake/bundle/macOS/Assets.xcassets)
+
+    target_sources(obs PRIVATE ${APP_ICON_TARGET})
+    set_source_files_properties(${APP_ICON_TARGET}
+                                PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+endif()
+
+# - Linda: Add start
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/data")
+    file(GLOB_RECURSE _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/*")
+    foreach(_DATA_FILE IN LISTS _DATA_FILES)
+      file(RELATIVE_PATH _RELATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data/
+           ${_DATA_FILE})
+	  message("zhongling123")
+	  message(${_DATA_FILE})
+      get_filename_component(_RELATIVE_PATH "${_RELATIVE_PATH}" PATH)
+      target_sources("obs" PRIVATE ${_DATA_FILE})
+      set_source_files_properties(
+        ${_DATA_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION
+                                 "Resources/${_RELATIVE_PATH}")
+      string(REPLACE "\\" "\\\\" _GROUP_NAME "${_RELATIVE_PATH}")
+      source_group("Resources\\${_GROUP_NAME}" FILES ${_DATA_FILE})
+    endforeach()
+  endif()
+
+  # - Linda: Add end

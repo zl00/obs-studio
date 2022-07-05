@@ -28,7 +28,7 @@ class QWidget;
 bool GetDataFilePath(const char *data, std::string &path);
 
 /* Updates the working directory for OSX application bundles */
-bool InitApplicationBundle();
+//bool InitApplicationBundle();
 
 std::string GetDefaultVideoSavePath();
 

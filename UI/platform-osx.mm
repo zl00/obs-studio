@@ -23,50 +23,52 @@
 #include "obs-app.hpp"
 
 #include <unistd.h>
+#include <sys/sysctl.h>
 
 #import <AppKit/AppKit.h>
 
 using namespace std;
 
+bool isInBundle()
+{
+	NSRunningApplication *app = [NSRunningApplication currentApplication];
+	return [app bundleIdentifier] != nil;
+}
+
 bool GetDataFilePath(const char *data, string &output)
 {
-	stringstream str;
-	str << OBS_DATA_PATH "/obs-studio/" << data;
-	output = str.str();
+	NSRunningApplication *app = [NSRunningApplication currentApplication];
+	NSURL *bundleURL = [app bundleURL];
+	NSString *path = [NSString
+		stringWithFormat:@"Contents/Resources/%@",
+				 [NSString stringWithUTF8String:data]];
+	NSURL *dataURL = [bundleURL URLByAppendingPathComponent:path];
+	output = [[dataURL path] UTF8String];
+
 	return !access(output.c_str(), R_OK);
 }
 
-bool InitApplicationBundle()
+void CheckIfAlreadyRunning(bool &already_running)
 {
-#ifdef OBS_OSX_BUNDLE
-	static bool initialized = false;
-	if (initialized)
-		return true;
-
 	try {
 		NSBundle *bundle = [NSBundle mainBundle];
 		if (!bundle)
 			throw "Could not find main bundle";
 
-		NSString *exe_path = [bundle executablePath];
-		if (!exe_path)
-			throw "Could not find executable path";
+		NSString *bundleID = [bundle bundleIdentifier];
+		if (!bundleID)
+			throw "Could not find bundle identifier";
 
-		NSString *path = [exe_path stringByDeletingLastPathComponent];
+		int app_count =
+			[NSRunningApplication
+				runningApplicationsWithBundleIdentifier:bundleID]
+				.count;
 
-		if (chdir([path fileSystemRepresentation]))
-			throw "Could not change working directory to "
-			      "bundle path";
+		already_running = app_count > 1;
 
 	} catch (const char *error) {
-		blog(LOG_ERROR, "InitBundle: %s", error);
-		return false;
+		blog(LOG_ERROR, "CheckIfAlreadyRunning: %s", error);
 	}
-
-	return initialized = true;
-#else
-	return true;
-#endif
 }
 
 string GetDefaultVideoSavePath()
@@ -126,17 +128,38 @@ bool IsAlwaysOnTop(QWidget *window)
 	return (window->windowFlags() & Qt::WindowStaysOnTopHint) != 0;
 }
 
+void disableColorSpaceConversion(QWidget *window)
+{
+	NSView *view =
+		(__bridge NSView *)reinterpret_cast<void *>(window->winId());
+	view.window.colorSpace = NSColorSpace.sRGBColorSpace;
+}
+
 void SetAlwaysOnTop(QWidget *window, bool enable)
 {
 	Qt::WindowFlags flags = window->windowFlags();
 
-	if (enable)
+	if (enable) {
+		/* Force the level of the window high so it sits on top of
+		 * full-screen applications like Keynote */
+		NSView *nsv = (__bridge NSView *)reinterpret_cast<void *>(
+			window->winId());
+		NSWindow *nsw = nsv.window;
+		[nsw setLevel:1024];
+
 		flags |= Qt::WindowStaysOnTopHint;
-	else
+	} else {
 		flags &= ~Qt::WindowStaysOnTopHint;
+	}
 
 	window->setWindowFlags(flags);
 	window->show();
+}
+
+bool SetDisplayAffinitySupported(void)
+{
+	// Not implemented yet
+	return false;
 }
 
 typedef void (*set_int_t)(int);

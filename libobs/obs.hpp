@@ -58,8 +58,7 @@ template<typename T, void addref(T), void release(T)> class OBSRef {
 		return *this;
 	}
 
-	struct TakeOwnership {
-	};
+	struct TakeOwnership {};
 	inline OBSRef(T val, TakeOwnership) : val(val) {}
 
 public:
