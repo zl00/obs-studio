@@ -175,6 +175,7 @@ if(NOT INSTALLER_RUN)
 	endif()
 
 	add_subdirectory(libobs-opengl)
+	add_subdirectory(libobs-metal)
 	add_subdirectory(libobs)
 	add_subdirectory(plugins)
 	add_subdirectory(UI)
